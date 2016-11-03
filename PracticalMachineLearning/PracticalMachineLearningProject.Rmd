@@ -1,80 +1,114 @@
 ---
 title: "Practical Machine Learning Project"
 author: "Tiblez"
-date: "October 30, 2016"
-output: html_document
+date: "11/2/2016"
+output: pdf_document
 ---
-##Introduction
-This project uses data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to investigate how well people do a particular activity. These participants perform barbell lifts correctly and incorrectly in the following 5 different ways.  
-* Class A - exactly according to the specification  
-* Class B - throwing the elbows to the front  
-* Class C - lifting the dumbbell only halfway  
-* Class D - lowering the dumbbell only halfway and   
-* Class E - throwing the hips to the front  
-Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes.
-Our goal is to predict the manner in which these 6 participants did the exercise. This report describes how the prediction model is built, how cross validation is used, what the expected out of sample error is, and why the choices for developing the model are done.
-The developed model was also used to predict 20 different test cases.
 
-##Data Processing and Cleaning
+## Introduction
+
+This project uses data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to investigate how well people do a particular activity. These participants perform barbell lifts correctly and incorrectly in the following 5 different ways.  
+Class A - exactly according to the specification  
+Class B - throwing the elbows to the front  
+Class C - lifting the dumbbell only halfway  
+Class D - lowering the dumbbell only halfwa and  
+Class E - throwing the hips to the front  
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes.  
+Our goal is to predict the manner in which these 6 participants did the exercise. This report describes how the prediction model is built, how cross validation is used, what the expected out of sample error is, and why the choices for developing the model are done. The developed model was also used to predict 20 different test cases.
+
+## Data Processing and Cleaning
+
 The data for this project is aquired from the [Weight Lifting Exercise Dataset](http://groupware.les.inf.puc-rio.br/har).  
 The training data are available here: <https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>  
 The test data are available here: <https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>  
-```{r}
+
+```{r, echo = TRUE}
 training<- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),
                     na.string=c("NA","","#DIV/0!"))
 testing<- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"),
                    na.string=c("NA","","#DIV/0!"))
 ```
-Columns that contain missing values were removed from both the training and testing sets. Furthermore columns 1-6 were removed since they are not needed for prediction.
-```{r}
-training <- training[, colSums(is.na(training)) == 0]
-testing <- testing[, colSums(is.na(testing)) == 0]
+The training dataset contains 19622 observations of 160 variables and the testing dataset contains 20 observations of 160 variables.
+
+#### Data Cleaning
+The first seven varibales, which are identifiers, are removed from the datasets since they are not needed for predection. Furthermore, columns that contain missing values are also removed from both the training and testing  datasets.
+```{r, echo = TRUE}
 training<- training[,-c(1:7)]
 testing<- testing[,-c(1:7)]
+training <- training[, colSums(is.na(training)) == 0]
+testing <- testing[, colSums(is.na(testing)) == 0]
+```
+Now our tidy training dataset contains 19622 observations of 53 variables and our tidy testing dataset contains 20 observations of 53 variables.
+
+##Model Building and Evaluation
+We will be building two models: Classification Tree and Random Forest. We will compare the prediction accuracy of each models and the most accurate one will be used to predict the 'classe' of the 20 observations in the testing set.
+
+Before we proceed with building our models, we need to load the following packages.
+```{r, message=FALSE, warning=FALSE}
+library(caret); library(rpart); library(rattle); library(rpart.plot); library(e1071); library(randomForest)
 ```
 
-##Model Building
-###Installing required packages
-```{r, results='hide', message=FALSE, warning=FALSE}
-library(caret)
-library(rpart)
-library(rattle)
-library(rpart.plot)
-library(e1071)
-library(randomForest)
+To save computing time, 5 fold cross validation is considered for both models.
+```{r, echo = TRUE}
+control <- trainControl(method = "cv", number = 5)
 ```
-###Data Splitting
-To compute out of sample error, the training data is splitted in to myTraining and myTesting datasets. myTraining which constitute 60% of the dataset is used in developing our models and myTesting which consttute 40% of the dataset is used for predictive model assessment.
-```{r}
+
+####Data Splitting
+
+The training data is splitted in to 'myTraining' and 'myTesting' datasets for model building and evaluation respectively. myTraining which constitute 60% of the dataset is used in developing our models and myTesting which consttute 40% of the dataset is used for predictive model assessment.
+```{r, echo = TRUE}
 set.seed(4321)
 inTrain<- createDataPartition(training$classe, p=.6)[[1]]
 myTraining = training[inTrain,]
 myTesting = training[-inTrain,]
 ```
 
-###Classification Tree
-To predict the outcome, I decided to start with classification tree. 
-```{r}
-modfit_rpart<- train(classe ~.,data=myTraining, method="rpart")
+### Classification Tree
+```{r, echo = TRUE}
+modfit_rpart<- train(classe ~.,data=myTraining, method="rpart", trControl = control)
 fancyRpartPlot(modfit_rpart$finalModel)
+```
+
+To evaluate the performance of the model and estimate the out-of-sample error, we predict the outcome 'classe' on the validation dataset (myTesting).
+```{r, echo = TRUE}
 predict_rpart<- predict(modfit_rpart, myTesting)
 confusionMatrix(predict_rpart, myTesting$classe)
+out_of_sample_Error_rpart<- 1 - as.numeric(confusionMatrix(predict_rpart, myTesting$classe)$overall[1])
+out_of_sample_Error_rpart
 ```
-From the confusion matrix, we can see that the accuracy is 0.49. This indicates that classification trees does not predict the outcome classe very well. Therefore I proceed with random forest to see if it gives a better prdiction accuracy.
+From the confusion matrix, we can see that the accuracy is 0.493 and the out of sample error is 0.507. This indicates that classification tree does not predict the outcome classe very well.
 
 ###Random Forest
-```{r}
-modfit_rf<- randomForest(classe ~ ., data=myTraining)
+```{r, echo = TRUE}
+modfit_rf<- randomForest(classe ~ ., data=myTraining, trControl = control)
+print(modfit_rf)
+```
+
+To evaluate the performance of the model and estimate the out-of-sample error, we predict the outcome 'classe' on the validation dataset (myTesting).
+```{r, echo = TRUE}
 predict_rf<- predict(modfit_rf, myTesting)
 confusionMatrix(predict_rf, myTesting$classe)
+out_of_sample_Error_rf<- 1 - as.numeric(confusionMatrix(predict_rf, myTesting$classe)$overall[1])
+out_of_sample_Error_rf
 ```
-With 0.99 accuracy, random forest yielded much better results in comparison to classification tree. Therefore, I decide to use random forest model to predict the 20 different test cases in the testing dataset.
+From the confusion matrix, we can see that the accuracy is 0.995 and the out of sample error is 0.005. This indicates that random forest can predict the outcome classe very well.
 
-###Prediction using Random Forest
-```{r}
+## Prediction on Testing Dataset
+With 99.5% accuracy, the random forest model is used to predict the 20 different test cases in the testing dataset.
+```{r, echo = TRUE}
 pred <- predict(modfit_rf, newdata=testing)
 PredictionResults <- data.frame(
   problem_id=testing$problem_id,
   predicted=pred)
 print(PredictionResults)
 ```
+
+## Conclusion
+
+Random forest yielded much better results in comparison to classification tree. From this outcome, we learn that random forests improve predictive accuracy by generating a large number of bootstrapped trees based on random samples of variables, classifying a case using each tree in this new "forest", and deciding a final predicted outcome by combining the results across all of the trees.
+  
+  
+## References  
+
+Human Activity Recognition <http://groupware.les.inf.puc-rio.br/har>    
+Quick-R <http://www.statmethods.net/>  
